@@ -60,8 +60,10 @@ import {
   createLinuxDesktopLaunchEnv,
   inspectPackedLinuxApp,
   LINUX_APPIMAGE_EXECUTABLE_ARGS,
+  linuxBuildsAppImage,
   matchesAppImageProcess,
   renderDesktopTemplate,
+  resolveLinuxBuilderTargets,
   renderLinuxAppImageAppRun,
   renderLinuxPackagedMainEntry,
   resolveLinuxLifecycleMode,
@@ -800,6 +802,30 @@ describe("resolveLinuxLifecycleMode", () => {
     expect(resolveLinuxLifecycleMode({}, "stop")).toBe("appimage");
     expect(resolveLinuxLifecycleMode({}, "uninstall")).toBe("appimage");
     expect(resolveLinuxLifecycleMode({}, "cleanup")).toBe("appimage");
+  });
+});
+
+describe("resolveLinuxBuilderTargets", () => {
+  it("maps deb to the electron-builder deb target", () => {
+    expect(resolveLinuxBuilderTargets("deb")).toEqual(["deb"]);
+  });
+
+  it("maps dir to an unpacked build", () => {
+    expect(resolveLinuxBuilderTargets("dir")).toEqual(["dir"]);
+  });
+
+  it("defaults appimage and all to AppImage", () => {
+    expect(resolveLinuxBuilderTargets("appimage")).toEqual(["AppImage"]);
+    expect(resolveLinuxBuilderTargets("all")).toEqual(["AppImage"]);
+  });
+});
+
+describe("linuxBuildsAppImage", () => {
+  it("is true only for appimage/all so deb and dir skip the AppRun wrapper", () => {
+    expect(linuxBuildsAppImage("appimage")).toBe(true);
+    expect(linuxBuildsAppImage("all")).toBe(true);
+    expect(linuxBuildsAppImage("deb")).toBe(false);
+    expect(linuxBuildsAppImage("dir")).toBe(false);
   });
 });
 
