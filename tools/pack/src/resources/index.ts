@@ -60,6 +60,7 @@ export const linuxResources = {
   // feed the `deb` target's fpm source=destination / --deb-changelog args.
   debianCopyright: join(resourcesRoot, "linux", "debian", "copyright"),
   debianChangelogTemplate: join(resourcesRoot, "linux", "debian", "changelog.template"),
+  debianLintianOverrides: join(resourcesRoot, "linux", "debian", "lintian-overrides"),
 } as const;
 
 const BUNDLED_RESOURCE_TREES = [

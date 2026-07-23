@@ -619,6 +619,12 @@ async function writeLinuxAppImageAppRun(paths: LinuxPaths): Promise<void> {
 // Maps the tools-pack `--to` target to the electron-builder Linux target list.
 // "dir" produces an unpacked tree, "deb" a Debian package, and everything else
 // ("appimage"/"all") an AppImage — the historical default.
+//
+// Note: on Linux `all` == AppImage only, which is intentionally NOT symmetric with
+// Windows (`all` == dir+nsis+zip). The deb build is a SEPARATE electron-builder run:
+// its productName ("OpenDesign", for a path-safe /opt) is mutually exclusive with
+// the AppImage's ("Open Design"), so they cannot be produced in one combined run.
+// `all` therefore stays AppImage-only; build the deb explicitly with `--to deb`.
 export function resolveLinuxBuilderTargets(to: ToolPackConfig["to"]): string[] {
   if (to === "dir") return ["dir"];
   if (to === "deb") return ["deb"];
@@ -650,13 +656,18 @@ const DEB_DISPLAY_NAME = "Open Design";
 async function writeDebMetadataFiles(
   paths: LinuxPaths,
   version: string,
-): Promise<{ copyrightPath: string; changelogPath: string }> {
+): Promise<{ copyrightPath: string; changelogPath: string; lintianOverridesPath: string }> {
   const metaDir = join(dirname(paths.appBuilderConfigPath), "deb-meta");
   await mkdir(metaDir, { recursive: true });
 
   // Copyright is fully static — copy the checked-in DEP-5 file verbatim.
   const copyrightPath = join(metaDir, "copyright");
   await cp(linuxResources.debianCopyright, copyrightPath);
+
+  // lintian overrides: a static, checked-in file documenting the deviations
+  // inherent to a bundled Electron package (see the file for rationale).
+  const lintianOverridesPath = join(metaDir, "lintian-overrides");
+  await cp(linuxResources.debianLintianOverrides, lintianOverridesPath);
 
   // Changelog carries the build version and date; render the template. The date
   // must be RFC 5322 with a numeric zone — toUTCString gives the correct
@@ -670,7 +681,7 @@ async function writeDebMetadataFiles(
     .replace(/@@DATE@@/g, date);
   await writeFile(changelogPath, changelog, "utf8");
 
-  return { copyrightPath, changelogPath };
+  return { copyrightPath, changelogPath, lintianOverridesPath };
 }
 
 async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths): Promise<void> {
@@ -728,7 +739,18 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
           ],
         }
       : {}),
-    files: ["**/*", "!**/node_modules/.bin", "!**/node_modules/electron{,/**/*}"],
+    files: [
+      "**/*",
+      "!**/node_modules/.bin",
+      "!**/node_modules/electron{,/**/*}",
+      // Bundled node_modules cruft that lintian flags and that no runtime needs:
+      // eslint configs (package-contains-eslint-config-file) and node-pty's
+      // Windows-only winpty build sources (its python helper scripts trip
+      // python3-script-but-no-python3-dep on Linux, where they never run).
+      "!**/.eslintrc{,.*}",
+      "!**/eslint.config.{js,cjs,mjs,ts}",
+      "!**/node_modules/node-pty/deps/winpty{,/**/*}",
+    ],
     icon: linuxResources.icon,
     linux: {
       target,
@@ -774,14 +796,20 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
             //                      Debian Package name is independent of the npm name,
             //                      so this touches nothing macOS/Windows/launcher use.
             //   --deb-changelog -> replaces electron-builder's invalid auto changelog.
-            //   copyright=...    -> DEP-5 copyright at /usr/share/doc/<pkg>/copyright
+            //   --license       -> fills the fpm License field (else "unknown").
+            //   copyright=...   -> DEP-5 copyright at /usr/share/doc/<pkg>/copyright
             //                      (electron-builder ships none: lintian no-copyright-file).
+            //   lintian-overrides=... -> documents the assumed bundled-Electron
+            //                      deviations at /usr/share/lintian/overrides/<pkg>.
             fpm: [
               "--name",
               DEB_PACKAGE_NAME,
+              "--license",
+              "Apache-2.0",
               "--deb-changelog",
               debMeta!.changelogPath,
               `${debMeta!.copyrightPath}=/usr/share/doc/${DEB_PACKAGE_NAME}/copyright`,
+              `${debMeta!.lintianOverridesPath}=/usr/share/lintian/overrides/${DEB_PACKAGE_NAME}`,
             ],
             // Debian-standard filename `<package>_<version>_<arch>.deb`. The
             // namespace is intentionally omitted (unlike the AppImage artifact):
