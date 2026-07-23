@@ -170,14 +170,15 @@ Verified smoke coverage in this repository currently includes:
 
 ### Format choice: why AppImage first
 
-Linux desktop apps in this space split across formats: VS Code ships `.deb` + `.rpm` + Snap; Discord ships AppImage + `.deb`; Slack ships `.deb` + `.rpm`; Cursor and Obsidian ship AppImage. We start with AppImage because one artifact can cover the widest glibc-compatible target without distro repositories, store packaging, signing infrastructure, or per-format install scripts, and it integrates cleanly with the namespace-scoped install layout. `.deb` / `.rpm` / Snap / Flatpak can land incrementally when user demand justifies the extra release ownership.
+Linux desktop apps in this space split across formats: VS Code ships `.deb` + `.rpm` + Snap; Discord ships AppImage + `.deb`; Slack ships `.deb` + `.rpm`; Cursor and Obsidian ship AppImage. We started with AppImage because one artifact can cover the widest glibc-compatible target without distro repositories, store packaging, signing infrastructure, or per-format install scripts, and it integrates cleanly with the namespace-scoped install layout. A standards-compliant `.deb` target is now also supported (`--to deb`); `.rpm` / Snap / Flatpak can still land incrementally when user demand justifies the extra release ownership.
 
 ### Out of scope (later phases)
 
 - AppImage signing (`--signed`) — deferred pending a GPG key infrastructure decision and a user-facing verification flow design (no ETA).
 - AppImage auto-update feed (`latest-linux.yml`) — the linux electron-builder config has no `publish` block wired, so a generated feed would point users at a feed that never updates. Tracked alongside signing.
-- Additional package formats: `.deb`, `.rpm`, Snap, Flatpak — deferred until there is demand and an owner for per-distro metadata, signing/store/repository plumbing, install/remove hooks, and release validation.
-- Full Linux AppImage and headless packaged smoke remain outside the main PR gate; run the applicable tools-pack validation manually or through a release lane when Linux packaging changes.
+- `.deb` build is supported via `--to deb` — a standards-compliant Debian package (`Package: open-design`, install under `/opt/OpenDesign`, section `devel`, RFC822 maintainer, `libc6` + t64-aware `depends`, DEP-5 `copyright` and a valid Debian `changelog`; verified with `dpkg-deb`, `lintian`, and a real boot). Publishing it through the release pipeline, package **signing**, and an **APT repository** remain deferred (separate follow-up plus a GPG key + hosting decision).
+- Additional package formats: `.rpm`, Snap, Flatpak — deferred until there is demand and an owner for per-distro metadata, signing/store/repository plumbing, install/remove hooks, and release validation.
+- Full Linux AppImage PR smoke remains release-lane only; PR validation runs the Linux headless packaged smoke because it does not require a display server.
 
 `--to dmg` is manual-install DMG output only. Any builder-generated updater metadata such as `latest-mac.yml` or
 `.blockmap` files is treated as scratch and cleaned from the builder directory; release-beta generates the authoritative
