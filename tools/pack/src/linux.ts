@@ -734,30 +734,28 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
       target,
       icon: linuxResources.icon,
       category: "Development",
-      // A distinct one-line synopsis + a hard-wrapped extended description. Lines
-      // are kept under 80 chars and free of leading whitespace so lintian does not
-      // flag extended-description-line-too-long / description-starts-with-leading-spaces;
-      // a bare product-name description would trip description-is-pkg-name.
+      // Distinct one-line synopsis + a concise single-line description. A bare
+      // product-name description trips lintian's description-is-pkg-name; keeping
+      // the description to one short line (< 80 chars) sidesteps the extended
+      // Description formatting quirks fpm produces for multi-line input.
       synopsis: "Local-first design agent driven by your installed code CLI",
-      description: [
-        "Open Design detects your installed code-agent CLI and runs design",
-        "skills and design systems, streaming generated artifacts into a",
-        "sandboxed live preview.",
-      ].join("\n"),
+      description: "Runs design skills and design systems, previewing artifacts in a sandbox.",
       // Path-safe product name (OpenDesign) keeps /opt and /usr/bin clean, but the
       // menu entry should still show the real brand. Override the .desktop Name so
       // the display stays "Open Design" regardless of the executable/dir name.
       desktop: { entry: { Name: DEB_DISPLAY_NAME } },
       // Debian Policy requires an RFC822 `Maintainer: Name <email>`; a bare name
-      // trips lintian's maintainer-address-malformed. Used for deb (and rpm) via
-      // electron-builder's shared linux.maintainer.
-      maintainer: "Open Design Contributors <eric.lemesre@gmail.com>",
+      // trips lintian's maintainer-address-malformed. Community project → a neutral
+      // project role address, never a personal one (it is shown by `apt show` on
+      // every install). Maintainers can point this at their preferred packaging
+      // contact. Used for deb (and rpm) via electron-builder's shared linux.maintainer.
+      maintainer: "Open Design Contributors <contributors@open-design.ai>",
     },
     // Debian package metadata. Only consulted when the `deb` target is built.
-    // Keep the runtime `depends` unset so electron-builder's Electron-version
-    // aware defaults apply; overriding replaces (not merges) the whole list and
-    // is the usual source of "installs but won't launch" breakage. The
-    // artifactName follows the Debian convention `<pkg>_<version>_<arch>.deb`
+    // `deb.depends` is set explicitly below (not left to electron-builder's
+    // defaults): overriding REPLACES — does not merge — the whole list, so it must
+    // carry every runtime dep itself, including libc6 and the t64-aware libraries.
+    // The artifactName follows the Debian convention `<pkg>_<version>_<arch>.deb`
     // (lowercase, no spaces), unlike the AppImage which keeps the product name.
     ...(config.to === "deb"
       ? {
