@@ -816,7 +816,10 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
     // carry every runtime dep itself, including libc6 and the t64-aware libraries.
     // The artifactName follows the Debian convention `<pkg>_<version>_<arch>.deb`
     // (lowercase, no spaces), unlike the AppImage which keeps the product name.
-    ...(config.to === "deb"
+    // Gate on debMeta (non-null iff the deb target is built) rather than
+    // re-testing config.to: this lets TypeScript narrow debMeta to non-null
+    // inside the block, so the fpm passthrough needs no non-null assertions.
+    ...(debMeta
       ? {
           deb: {
             priority: "optional",
@@ -844,9 +847,9 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
               "--license",
               "Apache-2.0",
               "--deb-changelog",
-              debMeta!.changelogPath,
-              `${debMeta!.copyrightPath}=/usr/share/doc/${DEB_PACKAGE_NAME}/copyright`,
-              `${debMeta!.lintianOverridesPath}=/usr/share/lintian/overrides/${DEB_PACKAGE_NAME}`,
+              debMeta.changelogPath,
+              `${debMeta.copyrightPath}=/usr/share/doc/${DEB_PACKAGE_NAME}/copyright`,
+              `${debMeta.lintianOverridesPath}=/usr/share/lintian/overrides/${DEB_PACKAGE_NAME}`,
             ],
             // Debian-standard filename `<package>_<version>_<arch>.deb`. The
             // namespace is intentionally omitted (unlike the AppImage artifact):
