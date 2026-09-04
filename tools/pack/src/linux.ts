@@ -684,6 +684,48 @@ async function writeDebMetadataFiles(
   return { copyrightPath, changelogPath, lintianOverridesPath };
 }
 
+/**
+ * electron-builder `files` patterns for the Linux bundle: everything in the
+ * assembled app minus the node_modules cruft no Linux runtime needs. Keeping it
+ * out is what makes the .deb clean (lintian) and smaller; every exclusion below
+ * names the tag or the bytes it removes.
+ *
+ * `hostArch` is Node's `process.arch` of the machine producing the bundle
+ * (electron-builder targets the host arch): prebuilt native binaries for every
+ * other platform/arch are dropped. Anything not listed is kept, so a new
+ * multi-platform dependency shows up in lintian before it silently bloats the
+ * package.
+ */
+export function linuxBundledFilePatterns(hostArch: string): string[] {
+  const arch = hostArch === "arm64" ? "arm64" : "x64";
+  const otherArch = arch === "x64" ? "arm64" : "x64";
+  return [
+    "**/*",
+    "!**/node_modules/.bin",
+    "!**/node_modules/electron{,/**/*}",
+    // eslint configs (package-contains-eslint-config-file) and node-pty's
+    // Windows-only winpty build sources (its python helper scripts trip
+    // python3-script-but-no-python3-dep on Linux, where they never run).
+    "!**/.eslintrc{,.*}",
+    "!**/eslint.config.{js,cjs,mjs,ts}",
+    "!**/node_modules/node-pty/deps/winpty{,/**/*}",
+    // Editor backup files published by mistake in @ffmpeg-installer/ffmpeg
+    // (backup-file-in-package).
+    "!**/*~",
+    // node-pty ships prebuilt bindings for every platform; only the Linux
+    // ones can load here.
+    "!**/node_modules/node-pty/prebuilds/{darwin,win32}-*{,/**/*}",
+    // onnxruntime-node (via hyperframes) bundles every platform and arch
+    // (binary-from-other-architecture, ~100 MB), plus the CUDA/TensorRT
+    // execution providers for linux (~345 MB) that need a CUDA toolkit this
+    // package does not depend on. hyperframes falls back to the CPU provider
+    // when they are absent.
+    "!**/node_modules/onnxruntime-node/bin/napi-v3/{darwin,win32}{,/**/*}",
+    `!**/node_modules/onnxruntime-node/bin/napi-v3/linux/${otherArch}{,/**/*}`,
+    `!**/node_modules/onnxruntime-node/bin/napi-v3/linux/${arch}/libonnxruntime_providers_{cuda,tensorrt}.so`,
+  ];
+}
+
 async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths): Promise<void> {
   const target = resolveLinuxBuilderTargets(config.to);
   const buildsAppImage = linuxBuildsAppImage(config.to);
@@ -739,18 +781,7 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
           ],
         }
       : {}),
-    files: [
-      "**/*",
-      "!**/node_modules/.bin",
-      "!**/node_modules/electron{,/**/*}",
-      // Bundled node_modules cruft that lintian flags and that no runtime needs:
-      // eslint configs (package-contains-eslint-config-file) and node-pty's
-      // Windows-only winpty build sources (its python helper scripts trip
-      // python3-script-but-no-python3-dep on Linux, where they never run).
-      "!**/.eslintrc{,.*}",
-      "!**/eslint.config.{js,cjs,mjs,ts}",
-      "!**/node_modules/node-pty/deps/winpty{,/**/*}",
-    ],
+    files: linuxBundledFilePatterns(process.arch),
     icon: linuxResources.icon,
     linux: {
       target,
